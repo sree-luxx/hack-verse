@@ -125,39 +125,7 @@ export const Sidebar: React.FC = () => {
           })}
         </nav>
 
-        {/* Role-specific quick actions */}
-        <div className="mt-8 pt-6 border-t border-gray-800">
-          <h4 className="text-sm font-medium text-gray-400 mb-3">Quick Actions</h4>
-          <div className="space-y-2">
-            {user.role === 'organizer' && (
-              <Link
-                to="/dashboard/create-event"
-                className="flex items-center space-x-2 text-sm text-neon-blue hover:text-blue-400 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create New Event</span>
-              </Link>
-            )}
-            {user.role === 'participant' && (
-              <Link
-                to="/dashboard/events"
-                className="flex items-center space-x-2 text-sm text-neon-green hover:text-green-400 transition-colors"
-              >
-                <Search className="w-4 h-4" />
-                <span>Find Events</span>
-              </Link>
-            )}
-            {user.role === 'judge' && (
-              <Link
-                to="/dashboard/reviews"
-                className="flex items-center space-x-2 text-sm text-neon-orange hover:text-orange-400 transition-colors"
-              >
-                <Award className="w-4 h-4" />
-                <span>Review Projects</span>
-              </Link>
-            )}
-          </div>
-        </div>
+
       </div>
     </div>
   );

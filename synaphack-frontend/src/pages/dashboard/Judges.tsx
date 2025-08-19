@@ -33,7 +33,9 @@ export const Judges: React.FC = () => {
           setAssignments(mapped);
           return;
         }
-      } catch {}
+      } catch (error) {
+        console.error('Failed to load judge assignments:', error);
+      }
     }
     const all: Assignment[] = JSON.parse(localStorage.getItem('hv_assignments') || '[]');
     setAssignments(all.filter(a => a.organizerId === user?.id && (!eventId || a.eventId === eventId)));
@@ -45,26 +47,73 @@ export const Judges: React.FC = () => {
       if (hasApiBaseUrl()) {
         try {
           const list = await api.get('/api/events?mine=true');
-          if (Array.isArray(list)) setMyEvents(list.map((e: any) => ({ id: String(e.id), title: e.name })));
-        } catch {}
+          if (Array.isArray(list)) {
+            const mappedEvents = list.map((e: any) => ({ 
+              id: String(e.id), 
+              title: e.name || e.title || 'Untitled Event' 
+            }));
+            setMyEvents(mappedEvents);
+          }
+        } catch (error) {
+          console.error('Failed to load events:', error);
+          // Fallback to localStorage
+          const storageKey = `hv_events_${user?.id || 'anon'}`;
+          const storedEvents = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          if (Array.isArray(storedEvents) && storedEvents.length > 0) {
+            const mappedEvents = storedEvents.map((e: any) => ({ 
+              id: String(e.id), 
+              title: e.title || e.name || 'Untitled Event' 
+            }));
+            setMyEvents(mappedEvents);
+          }
+        }
+      } else {
+        // Fallback to localStorage when API is not available
+        const storageKey = `hv_events_${user?.id || 'anon'}`;
+        const storedEvents = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (Array.isArray(storedEvents) && storedEvents.length > 0) {
+          const mappedEvents = storedEvents.map((e: any) => ({ 
+            id: String(e.id), 
+            title: e.title || e.name || 'Untitled Event' 
+          }));
+          setMyEvents(mappedEvents);
+        }
       }
     };
     loadEvents();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => { load(); }, [eventId, user?.id]);
 
   const addJudge = async () => {
     if (!eventId || !judgeEmail.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(judgeEmail.trim())) {
+      alert('Please enter a valid email address');
+      return;
+    }
+    
     if (hasApiBaseUrl()) {
       try {
-        await api.post('/api/judges/assignments', { eventId, judgeId: judgeEmail });
+        await api.post('/api/judges/assignments', { eventId, judgeEmail: judgeEmail.trim() });
         setJudgeEmail('');
         await load();
         return;
-      } catch {}
+      } catch (error) {
+        console.error('Failed to assign judge:', error);
+        alert('Failed to assign judge. Please try again.');
+      }
     }
-    const newAssign: Assignment = { eventId, judgeId: `judge-${judgeEmail}`, judgeName: judgeEmail.split('@')[0], organizerId: user?.id || '' };
+    
+    // Fallback to localStorage
+    const newAssign: Assignment = { 
+      eventId, 
+      judgeId: `judge-${judgeEmail}`, 
+      judgeName: judgeEmail.split('@')[0], 
+      organizerId: user?.id || '' 
+    };
     const all: Assignment[] = JSON.parse(localStorage.getItem('hv_assignments') || '[]');
     localStorage.setItem('hv_assignments', JSON.stringify([newAssign, ...all]));
     setJudgeEmail('');
@@ -82,33 +131,125 @@ export const Judges: React.FC = () => {
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-orbitron font-bold">Judges</h1>
       <Card roleColor={roleColor}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Hackathon assigned</label>
-            <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="neon-input w-full px-4 py-2.5 text-white rounded-lg">
-              <option value="">Select an event</option>
-              {myEvents.map(ev => (<option key={ev.id} value={ev.id}>{ev.title}</option>))}
-            </select>
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-neon-blue">Assign Judges to Events</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Select Hackathon</label>
+              <select 
+                value={eventId} 
+                onChange={(e) => setEventId(e.target.value)} 
+                className="neon-input w-full px-4 py-2.5 text-white rounded-lg"
+              >
+                <option value="">Choose an event to assign judges</option>
+                {myEvents.length === 0 ? (
+                  <option value="" disabled>No events created yet</option>
+                ) : (
+                  myEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.title}
+                    </option>
+                  ))
+                )}
+              </select>
+              {myEvents.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1">Create events first to assign judges</p>
+              )}
+            </div>
+            
+            <Input 
+              label="Judge Email" 
+              value={judgeEmail} 
+              onChange={(e) => setJudgeEmail(e.target.value)} 
+              placeholder="judge@example.com" 
+              roleColor={roleColor} 
+            />
+            
+            <div className="flex items-end">
+              <Button 
+                onClick={addJudge} 
+                roleColor={roleColor}
+                disabled={!eventId || !judgeEmail.trim()}
+                className="w-full"
+              >
+                <UserPlus className="w-4 h-4 mr-2" /> 
+                Assign Judge
+              </Button>
+            </div>
           </div>
-          <Input label="Judge email" value={judgeEmail} onChange={(e) => setJudgeEmail(e.target.value)} placeholder="judge@example.com" roleColor={roleColor} />
-          <div className="flex items-end">
-            <Button onClick={addJudge} roleColor={roleColor}><UserPlus className="w-4 h-4" /> Assign</Button>
-          </div>
+          
+          {eventId && (
+            <div className="text-sm text-gray-400">
+              <span className="text-neon-blue">Selected Event:</span> {myEvents.find(e => e.id === eventId)?.title}
+            </div>
+          )}
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {assignments.map((a, idx) => (
-          <Card key={`${a.eventId}-${a.judgeId}-${idx}`} roleColor={roleColor}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-white font-semibold flex items-center gap-2"><Award className="w-4 h-4 text-neon-orange" /> {a.judgeName}</div>
-                <div className="text-gray-400 text-sm flex items-center gap-2"><Target className="w-4 h-4 text-neon-blue" /> Event: {a.eventId}</div>
-              </div>
-              <Button variant="outline" roleColor={roleColor} onClick={() => removeJudge(a)}><UserMinus className="w-4 h-4" /> Remove</Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Assigned Work</h2>
+          {assignments.length > 0 && (
+            <span className="text-sm text-gray-400">
+              {assignments.length} judge{assignments.length !== 1 ? 's' : ''} assigned
+            </span>
+          )}
+        </div>
+        
+        {assignments.length === 0 ? (
+          <Card roleColor={roleColor}>
+            <div className="text-center py-8">
+              <Award className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400">No judges assigned yet</p>
+              <p className="text-sm text-gray-500 mt-1">Select an event above and assign judges to get started</p>
             </div>
           </Card>
-        ))}
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {assignments.map((a, idx) => {
+              const event = myEvents.find(e => e.id === a.eventId);
+              return (
+                <Card key={`${a.eventId}-${a.judgeId}-${idx}`} roleColor={roleColor}>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Award className="w-5 h-5 text-neon-orange" />
+                        <span className="text-white font-semibold">{a.judgeName}</span>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        roleColor={roleColor} 
+                        onClick={() => removeJudge(a)}
+                      >
+                        <UserMinus className="w-4 h-4 mr-1" /> 
+                        Remove
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Target className="w-4 h-4 text-neon-blue" />
+                        <span className="text-gray-400">Event:</span>
+                        <span className="text-white font-medium">
+                          {event ? event.title : `Event ID: ${a.eventId}`}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-400">Judge ID:</span>
+                        <span className="text-gray-300 font-mono text-xs bg-gray-800 px-2 py-1 rounded">
+                          {a.judgeId}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
